@@ -73,11 +73,20 @@ add_field(Name, Type, Default, Acc) ->
 generate_f(attribute, {attribute, L, _, _} = Form, _Ctxt, State) ->
     if
         L =:= State#state.line ->
-            Forms = lists:append([generate_new_0(State),
+            Forms = lists:append([generate_export(State),
+                                  generate_new_0(State),
+                                  generate_new_1(State),
                                   generate_read_field_3(State),
                                   generate_write_field_3(State),
                                   generate_get_one(State),
-                                  generate_set_one(State)
+                                  generate_set_one(State),
+                                  generate_set(State),
+                                  generate_get(State),
+                                  generate_pjm_info(State),
+                                  generate_map(State),
+                                  generate_fold(State),
+                                  generate_to_list(State),
+                                  generate_coerce(State)
                                  ]),
             {[], Form, Forms, false, State};
         true -> {Form, false, State}
@@ -85,11 +94,31 @@ generate_f(attribute, {attribute, L, _, _} = Form, _Ctxt, State) ->
 generate_f(_Type, Form, _Ctxt, State) ->
     {Form, false, State}.
 
-generate_new_0(#state{line = L, module = Module, fields = Fields}) ->
+generate_export(#state{ line = L }) ->
+    [{attribute, L, export, [{new, 0},
+                             {new, 1},
+                             {set, 2},
+                             {set, 3},
+                             {get, 2},
+                             {get, 3},
+                             {map, 2},
+                             {fold, 3},
+                             {to_list, 1},
+                             {pjm_info, 1},
+                             {coerce, 2}
+                            ]}].
+
+generate_new_0(#state{module = Module, fields = Fields}) ->
     Defaults = lists:map(fun(F) -> F#field.default end, Fields),
     NewModel = {Module, list_to_tuple(Defaults), undefined},
-    [{attribute,L,export,[{new, 0}]},
-     codegen:gen_function(new, fun() -> {'$var', NewModel} end)].
+    [codegen:gen_function(new, fun() -> {'$var', NewModel} end)].
+
+generate_new_1(#state{module = Module}) ->
+    [codegen:gen_function(
+       new,
+       fun(Attrs) when is_list(Attrs) -> set(Attrs, new());
+          ({{'$var', Module}, _, _} = Model) -> Model
+       end)].
 
 generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
     Fun1 = codegen:gen_function(
@@ -132,12 +161,22 @@ generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fi
                  [{var,L,'Key'},
                   {var,L,'Value'},
                   {var,L,'Dict'}]},
+    Erase = {call,L,
+             {remote,L,{atom,L,Backend},{atom,L,erase}},
+             [{var,L,'Key'},
+              {var,L,'Dict'}]},
     Fun2 = codegen:gen_function(
              write_field,
-             fun(Key, Value, {{'$var', Module}, Tuple, undefined}) ->
+             fun(_Key, undefined, {{'$var', Module}, _Tuple, undefined} = Model) ->
+                     Model;
+                (Key, Value, {{'$var', Module}, Tuple, undefined}) ->
                      {{'$var', Module},
                       Tuple,
                       {'$form', CreateDict}};
+                (Key, undefined, {{'$var', Module}, Tuple, Dict}) ->
+                     {{'$var', Module},
+                      Tuple,
+                      {'$form', Erase}};
                 (Key, Value, {{'$var', Module}, Tuple, Dict}) ->
                      {{'$var', Module},
                       Tuple,
@@ -153,10 +192,124 @@ generate_get_one(_State) ->
      codegen:gen_function(get_one, fun(Key, Default, Model) -> read_field(Key, Default, Model) end)
     ].
 
+generate_get(_State) ->
+    [
+     codegen:gen_function(
+       get,
+       fun(Key, Model) when is_atom(Key) -> get_one(Key, undefined, Model);
+          (Keys, Model) ->
+               F = fun(K) when is_atom(K) -> get_one(K, undefined, Model);
+                      ({K, Default}) -> get_one(K, Default, Model)
+                   end,
+               lists:map(F, Keys)
+       end),
+     codegen:gen_function(
+       get,
+       fun(Key, Default, Model) -> get_one(Key, Default, Model) end
+      )
+    ].
+
 generate_set_one(#state{set_one_defined = true}) -> [];
 generate_set_one(_State) ->
     [
      codegen:gen_function(set_one, fun(Key, Value, Model) -> write_field(Key, Value, Model) end)
+    ].
+
+generate_set(_State) ->
+    [
+     codegen:gen_function(
+       set,
+       fun([], Model) -> Model;
+          ([{K, V}|Rest], Model) ->
+               set(Rest, set_one(K, V, Model))
+       end),
+     codegen:gen_function(
+       set,
+       fun(Key, Value, Model) -> set_one(Key, Value, Model) end
+      )
+    ].
+
+generate_map(#state { module = Module, uses_dict = Backend }) ->
+    [
+     codegen:gen_function(
+       map,
+       fun(Fun, {{'$var', Module}, Tuple, Dict}) ->
+               {Model, _} = lists:foldl(
+                              fun(Key, {ModelIn, Index}) ->
+                                      { set_one(Key, Fun(Key, element(Index, Tuple)), ModelIn),
+                                        Index + 1 }
+                              end,
+                              {new(), 1},
+                              pjm_info(fields)),
+               case Dict of
+                   undefined -> Model;
+                   _ ->
+                       apply({'$var', Backend}, fold,
+                             [fun(K, V, ModelIn) ->
+                                      set_one(K, Fun(K, V), ModelIn)
+                              end,
+                              Model,
+                              Dict])
+               end
+       end
+      )
+    ].
+
+generate_fold((#state { module = Module, uses_dict = Backend })) ->
+    [
+     codegen:gen_function(
+       fold,
+       fun(Fun, Acc, {{'$var', Module}, Tuple, Dict}) ->
+               {Acc1, _} = lists:foldl(
+                             fun(Key, {AccIn, Index}) ->
+                                     {Fun(Key, element(Index, Tuple), AccIn), Index + 1}
+                             end,
+                             {Acc, 1},
+                             pjm_info(fields)
+                            ),
+               case Dict of
+                   undefined -> Acc1;
+                   _ ->
+                       apply({'$var', Backend}, fold, [Fun, Acc1, Dict])
+               end
+       end
+      )
+    ].
+
+generate_to_list(_State) ->
+    [codegen:gen_function(
+       to_list,
+       fun(Model) ->
+               fold(
+                 fun(K, V, List) ->
+                         [{K, V}|List]
+                 end,
+                 [],
+                 Model
+                )
+       end
+      )].
+
+generate_pjm_info(#state { fields = Fields, stores_in = StoresIn }) ->
+    FieldsNames = [ F#field.name || F <- Fields ],
+    [
+     codegen:gen_function(
+       pjm_info,
+       fun(fields) -> {'$var', FieldsNames};
+          (stores_in) -> {'$var', StoresIn}
+       end
+      )
+    ].
+
+generate_coerce(#state{ module = Module }) ->
+    [
+     codegen:gen_function(
+       coerce,
+       fun({'$var', Module}, {{'$var', Module}, _, _} = Model) -> Model;
+          ({'$var', Module}, Attrs) when is_list(Attrs) -> new(Attrs);
+          ({'$var', Module}, {Attrs}) when is_list(Attrs) -> new(Attrs)
+       end
+      )
     ].
 
 format_error(E) ->

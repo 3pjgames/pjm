@@ -66,3 +66,30 @@ set_one_coercion_test() ->
 set_one_unknown_field_test() ->
     U1 = set_one('Password', <<"secret">>, new()),
     ?assertEqual(<<"secret">>, read_field('Password', undefined, U1)).
+
+get_test_() ->
+    {
+      setup,
+      fun() -> new() end,
+      fun(_) -> ok end,
+      fun(U) ->
+              [
+               ?_assertEqual(<<"test">>, get('Login', undefined, U)),
+               ?_assertEqual(<<"test">>, get('Login', U)),
+               ?_assertEqual([<<"test">>], get(['Login'], U)),
+               ?_assertEqual([<<"test">>, 1], get(['Login', {'Test', 1}], U))
+              ]
+      end
+    }.
+
+set_test() ->
+    U1 = set('Login', <<"changed">>, new()),
+    ?assertEqual(<<"changed">>, get('Login', U1)),
+    U2 = set([{'Login', <<"ian">>},{'Password', <<"secret">>}], U1),
+    ?assertEqual([<<"ian">>, <<"secret">>], get(['Login', 'Password'], U2)).
+
+map_test() ->
+    U1 = new([{'Test', 1}]),
+    F = fun(_, _) -> <<"mapped">> end,
+    ?assertEqual([{'Test', <<"mapped">>}, {'Login', <<"mapped">>}],
+                 to_list(map(F, U1))).
