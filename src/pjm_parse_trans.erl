@@ -11,11 +11,10 @@
           get_one_defined = false,
           set_one_defined = false,
           uses_dict = orddict,
-          fields = [],
-          field_of_name = orddict:new()
+          fields = []
          }).
 
--record(field, {name, index, type = binary, default}).
+-record(field, {name, index, type = any, default}).
 
 parse_transform(Forms, Options) ->
     parse_trans:top(fun do_transform/2, Forms, Options).
@@ -27,8 +26,8 @@ do_transform(Forms, Context) ->
                       undefined -> {Forms, State1};
                       _ -> parse_trans:do_transform(fun generate_f/4, State1, Forms, Context)
                   end,
-    io:format(">>>>>~n~p~n=====~n", [Forms]),
-    io:format("~p~n<<<<<~n", [Forms1]),
+    %% io:format(">>>>>~n~p~n=====~n", [Forms]),
+    %% io:format("~p~n<<<<<~n", [Forms1]),
     Forms1.
 
 inspect_f(attribute, {attribute, _L, module, Module}, _Ctxt, Acc) ->
@@ -64,20 +63,19 @@ inspect_field([], Acc) ->
     Acc.
 
 add_field(Name, Type, Default, Acc) ->
-    #state { fields = Fields, field_of_name = Map } = Acc,
+    #state { fields = Fields } = Acc,
     Index = length(Fields) + 1,
     Field = #field { name = Name,
                      index = Index,
                      type = Type,
                      default = Default },
-    Acc#state { fields = [Field | Fields],
-                field_of_name = orddict:store(Name, Field, Map) }.
-
+    Acc#state { fields = [Field | Fields] }.
 generate_f(attribute, {attribute, L, _, _} = Form, _Ctxt, State) ->
     if
         L =:= State#state.line ->
             Forms = lists:append([generate_new_0(State),
-                                  generate_read_field_3(State)
+                                  generate_read_field_3(State),
+                                  generate_write_field_3(State)
                                  ]),
             {[], Form, Forms, false, State};
         true -> {Form, false, State}
@@ -89,74 +87,63 @@ generate_new_0(#state{line = L, module = Module, fields = Fields}) ->
     Defaults = lists:map(fun(F) -> F#field.default end, Fields),
     NewModel = {Module, list_to_tuple(Defaults), undefined},
     [{attribute,L,export,[{new, 0}]},
-     {function,L,new,0,
-      [{clause,L,[],[],
-        codegen:exprs(fun() -> {'$var', NewModel} end)}]}].
-
+     codegen:gen_function(new, fun() -> {'$var', NewModel} end)].
 
 generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
-    Clauses = [
-               {clause,L,
-                [{atom,L,F#field.name},
-                 {var,L,'Default'},
-                 {tuple,L,
-                  [{atom,L,Module},{var,L,'Tuple'},{var,L,'_'}]}],
-                [],
-                [{'case',L,
-                  {call,L,
-                   {atom,L,element},
-                   [{integer,L,F#field.index},{var,L,'Tuple'}]},
-                  [{clause,L,
-                    [{atom,L,undefined}],
-                    [],
-                    [{var,L,'Default'}]},
-                   {clause,L,
-                    [{var,L,'V'}],
-                    [],
-                    [{var,L,'V'}]}]}]} || F <- Fields
-              ],
-    Clauses1 = [{clause,L,
-                 [{var,L,'Key'},
-                  {var,L,'Default'},
-                  {tuple,L,[{atom,L,Module},{var,L,'_'},{var,L,'Dict'}]}],
-                 [],
-                 [{'case',L,
-                   {call,L,
-                    {atom,L,apply},
-                    [{atom,L,Backend},
-                     {atom,L,find},
-                     {cons,L,
-                      {var,L,'Key'},
-                      {cons,L,{var,L,'Dict'},{nil,L}}}]},
-                   [{clause,L,
-                     [{tuple,L,[{atom,L,ok},{var,L,'V'}]}],
-                     [],
-                     [{var,L,'V'}]},
-                    {clause,L,[{var,L,'_'}],[],[{var,L,'Default'}]}]}]},
-                {clause,L,
-                 [{var,L,'_'},
-                  {var,L,'Default'},
-                  {tuple,L,[{atom,L,Module},{var,L,'_'},{atom,L,undefined}]}],
-                 [],
-                 [{var,L,'Default'}]} |
-                Clauses ],
+    Fun1 = codegen:gen_function(
+             read_field,
+             [ fun({'$var', Name}, Default, {{'$var', Module}, Tuple, _}) ->
+                       case element({'$var', Index}, Tuple) of
+                           undefined -> Default;
+                           V -> V
+                       end
+               end || #field{name = Name, index = Index} <- Fields ]),
+    {function,_,_,_,Clauses1} = Fun1,
+    Fun2 = codegen:gen_function(
+             read_field,
+             fun(_Key, Default, {{'$var', Module}, _, undefined}) ->
+                     Default;
+                (Key, Default, {{'$var', Module}, _, Dict}) ->
+                     case apply({'$var', Backend}, find, [Key, Dict]) of
+                         {ok, V} -> V;
+                         _ -> Default
+                     end
+             end),
+    {function,_,_,_,Clauses2} = Fun2,
     [{function,L,read_field,3,
-      lists:reverse(Clauses1)}].
+      (Clauses1 ++ Clauses2)}].
 
-%% generate_read_field_3(#state{line = L, module = Module, fields = Fields}) ->
-
-%% FunForms = codegen:gen_function(
-
-%%                 )
-%%     [{clause,15,
-%%                     [{atom,15,foo},
-%%                      {atom,15,undefined},
-%%                      {tuple,15,
-%%                             [{atom,15,user},{var,15,'Tuple'},{var,15,'_'}]}],
-%%                     [],
-%%                     [{call,16,
-%%                            {atom,16,element},
-%%                            [{integer,16,2},{var,16,'Tuple'}]}]}]},
+generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
+    Fun1 = codegen:gen_function(
+             write_field,
+             [ fun({'$var', Name}, Value, {{'$var', Module}, Tuple, Dict}) ->
+                       {{'$var', Module}, setelement({'$var', Index}, Tuple, pjm_coercion:coerce({'$var', Type}, Value)), Dict}
+               end || #field{name = Name, index = Index, type = Type} <- Fields ]),
+    {function,_,_,_,Clauses1} = Fun1,
+    CreateDict = {call,L,
+                  {remote,L,{atom,L,Backend},{atom,57,store}},
+                  [{var,L,'Key'},
+                   {var,L,'Value'},
+                   {call,L,{remote,L,{atom,L,Backend},{atom,L,new}},[]}]},
+    StoreDict = {call,L,
+                 {remote,L,{atom,L,Backend},{atom,L,store}},
+                 [{var,L,'Key'},
+                  {var,L,'Value'},
+                  {var,L,'Dict'}]},
+    Fun2 = codegen:gen_function(
+             write_field,
+             fun(Key, Value, {{'$var', Module}, Tuple, undefined}) ->
+                     {{'$var', Module},
+                      Tuple,
+                      {'$form', CreateDict}};
+                (Key, Value, {{'$var', Module}, Tuple, Dict}) ->
+                     {{'$var', Module},
+                      Tuple,
+                      {'$form', StoreDict}}
+             end),
+    {function,_,_,_,Clauses2} = Fun2,
+    [{function,L,write_field,3,
+      (Clauses1 ++ Clauses2)}].
 
 format_error(E) ->
     case io_lib:deep_char_list(E) of
