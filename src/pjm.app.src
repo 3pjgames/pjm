@@ -1,0 +1,13 @@
+{application, pjm,
+ [
+  {description, "PJ Model"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  syntax_tools,
+                  parse_trans
+                 ]},
+  {env, []}
+ ]}.
