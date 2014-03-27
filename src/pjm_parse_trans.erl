@@ -75,7 +75,9 @@ generate_f(attribute, {attribute, L, _, _} = Form, _Ctxt, State) ->
         L =:= State#state.line ->
             Forms = lists:append([generate_new_0(State),
                                   generate_read_field_3(State),
-                                  generate_write_field_3(State)
+                                  generate_write_field_3(State),
+                                  generate_get_one(State),
+                                  generate_set_one(State)
                                  ]),
             {[], Form, Forms, false, State};
         true -> {Form, false, State}
@@ -144,6 +146,18 @@ generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fi
     {function,_,_,_,Clauses2} = Fun2,
     [{function,L,write_field,3,
       (Clauses1 ++ Clauses2)}].
+
+generate_get_one(#state{get_one_defined = true}) -> [];
+generate_get_one(_State) ->
+    [
+     codegen:gen_function(get_one, fun(Key, Default, Model) -> read_field(Key, Default, Model) end)
+    ].
+
+generate_set_one(#state{set_one_defined = true}) -> [];
+generate_set_one(_State) ->
+    [
+     codegen:gen_function(set_one, fun(Key, Value, Model) -> write_field(Key, Value, Model) end)
+    ].
 
 format_error(E) ->
     case io_lib:deep_char_list(E) of
