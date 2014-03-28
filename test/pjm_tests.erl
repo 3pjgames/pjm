@@ -3,7 +3,7 @@
 
 is_test_() ->
     [
-     ?_assert(pjm:is(user_tests, user_tests:new())),
-     ?_assertNot(pjm:is(user, user_tests:new()))
+     ?_assert(pjm:is(pjm_parse_trans_tests, pjm_parse_trans_tests:new())),
+     ?_assertNot(pjm:is(pjm_parse_trans_test, pjm_parse_trans_tests:new()))
     ].
 

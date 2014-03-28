@@ -14,7 +14,7 @@ new_test_() ->
       fun(_) -> ok end,
       fun(U) ->
               [
-               ?_assertEqual({pjm_parse_trans_tests, {<<"test">>}, undefined}, U)
+               ?_assertEqual({pjm, pjm_parse_trans_tests, {<<"test">>}, undefined}, U)
               ]
       end
     }.

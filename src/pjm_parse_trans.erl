@@ -110,20 +110,20 @@ generate_export(#state{ line = L }) ->
 
 generate_new_0(#state{module = Module, fields = Fields}) ->
     Defaults = lists:map(fun(F) -> F#field.default end, Fields),
-    NewModel = {Module, list_to_tuple(Defaults), undefined},
+    NewModel = {pjm, Module, list_to_tuple(Defaults), undefined},
     [codegen:gen_function(new, fun() -> {'$var', NewModel} end)].
 
 generate_new_1(#state{module = Module}) ->
     [codegen:gen_function(
        new,
        fun(Attrs) when is_list(Attrs) -> set(Attrs, new());
-          ({{'$var', Module}, _, _} = Model) -> Model
+          ({pjm, {'$var', Module}, _, _} = Model) -> Model
        end)].
 
 generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
     Fun1 = codegen:gen_function(
              read_field,
-             [ fun({'$var', Name}, Default, {{'$var', Module}, Tuple, _}) ->
+             [ fun({'$var', Name}, Default, {pjm, {'$var', Module}, Tuple, _}) ->
                        case element({'$var', Index}, Tuple) of
                            undefined -> Default;
                            V -> V
@@ -134,9 +134,9 @@ generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fie
              read_field,
              fun(Key, Default, Model) when is_binary(Key)->
                      read_field(binary_to_atom(Key, utf8), Default, Model);
-                (_Key, Default, {{'$var', Module}, _, undefined}) ->
+                (_Key, Default, {pjm, {'$var', Module}, _, undefined}) ->
                      Default;
-                (Key, Default, {{'$var', Module}, _, Dict}) ->
+                (Key, Default, {pjm, {'$var', Module}, _, Dict}) ->
                      case apply({'$var', Backend}, find, [Key, Dict]) of
                          {ok, V} -> V;
                          _ -> Default
@@ -149,8 +149,8 @@ generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fie
 generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
     Fun1 = codegen:gen_function(
              write_field,
-             [ fun({'$var', Name}, Value, {{'$var', Module}, Tuple, Dict}) ->
-                       {{'$var', Module}, setelement({'$var', Index}, Tuple, pjm_coercion:coerce({'$var', Type}, Value)), Dict}
+             [ fun({'$var', Name}, Value, {pjm, {'$var', Module}, Tuple, Dict}) ->
+                       {pjm, {'$var', Module}, setelement({'$var', Index}, Tuple, pjm_coercion:coerce({'$var', Type}, Value)), Dict}
                end || #field{name = Name, index = Index, type = Type} <- Fields ]),
     {function,_,_,_,Clauses1} = Fun1,
     CreateDict = {call,L,
@@ -169,20 +169,23 @@ generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fi
               {var,L,'Dict'}]},
     Fun2 = codegen:gen_function(
              write_field,
-             fun(_Key, undefined, {{'$var', Module}, _Tuple, undefined} = Model) ->
+             fun(_Key, undefined, {pjm, {'$var', Module}, _Tuple, undefined} = Model) ->
                      Model;
                 (Key, Value, Model) when is_binary(Key) ->
                      write_field(binary_to_atom(Key, utf8), Value, Model);
-                (Key, Value, {{'$var', Module}, Tuple, undefined}) ->
-                     {{'$var', Module},
+                (Key, Value, {pjm, {'$var', Module}, Tuple, undefined}) ->
+                     {pjm,
+                      {'$var', Module},
                       Tuple,
                       {'$form', CreateDict}};
-                (Key, undefined, {{'$var', Module}, Tuple, Dict}) ->
-                     {{'$var', Module},
+                (Key, undefined, {pjm, {'$var', Module}, Tuple, Dict}) ->
+                     {pjm,
+                      {'$var', Module},
                       Tuple,
                       {'$form', Erase}};
-                (Key, Value, {{'$var', Module}, Tuple, Dict}) ->
-                     {{'$var', Module},
+                (Key, Value, {pjm, {'$var', Module}, Tuple, Dict}) ->
+                     {pjm,
+                      {'$var', Module},
                       Tuple,
                       {'$form', StoreDict}}
              end),
@@ -237,7 +240,7 @@ generate_map(#state { module = Module, uses_dict = Backend }) ->
     [
      codegen:gen_function(
        map,
-       fun(Fun, {{'$var', Module}, Tuple, Dict}) ->
+       fun(Fun, {pjm, {'$var', Module}, Tuple, Dict}) ->
                {Model, _} = lists:foldl(
                               fun(Key, {ModelIn, Index}) ->
                                       { set_one(Key, Fun(Key, element(Index, Tuple)), ModelIn),
@@ -263,7 +266,7 @@ generate_fold((#state { module = Module, uses_dict = Backend })) ->
     [
      codegen:gen_function(
        fold,
-       fun(Fun, Acc, {{'$var', Module}, Tuple, Dict}) ->
+       fun(Fun, Acc, {pjm, {'$var', Module}, Tuple, Dict}) ->
                {Acc1, _} = lists:foldl(
                              fun(Key, {AccIn, Index}) ->
                                      {Fun(Key, element(Index, Tuple), AccIn), Index + 1}

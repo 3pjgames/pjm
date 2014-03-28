@@ -1,4 +1,5 @@
 -module(pjm_coercion).
+-compile({ parse_transform, ct_expand }).
 -export([coerce/2]).
 
 %% Coerce Value to proper value of type Type.
@@ -46,6 +47,21 @@ do_coerce(boolean, true) ->
     true;
 do_coerce(boolean, _) ->
     false;
+do_coerce(timestamp, {_Mega, _Secs, _Micro} = Timestamp) ->
+    Timestamp;
+do_coerce(timestamp, {Date, Time} = Datetime) when is_tuple(Date) andalso is_tuple(Time) ->
+    Seconds = calendar:datetime_to_gregorian_seconds(Datetime) - ct_expand:term(calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})),
+    {Seconds div 1000000, Seconds rem 1000000, 0};
+do_coerce(timestamp, Timestamp) when is_binary(Timestamp) ->
+    %% "2009-04-12T20:44:55Z"
+    {ok, Re} = ct_expand:term(re:compile(<<"^(\\d\\d\\d\\d)-(\\d\\d)-(\\d\\d)T(\\d\\d):(\\d\\d):(\\d\\d)Z?">>, [caseless])),
+    case re:run(Timestamp, Re, [{capture, all_but_first, binary}]) of
+        {match, [Y, Mon, D, H, M, S]} ->
+            do_coerce(timestamp,
+                      {{binary_to_integer(Y), binary_to_integer(Mon), binary_to_integer(D)},
+                       {binary_to_integer(H), binary_to_integer(M), binary_to_integer(S)}});
+        _ -> error(badcoersion)
+    end;
 do_coerce([Type], Value) when is_list(Value) ->
     F = fun(V) -> do_coerce(Type, V) end,
     lists:map(F, Value);
@@ -55,6 +71,8 @@ do_coerce([Type], Value) ->
 do_coerce({Type}, {Value}) when is_list(Value) ->
     F = fun({K, V}) -> {K, do_coerce(Type, V)} end,
     {lists:map(F, Value)};
+do_coerce({Type}, {pjm, _, _, _} = Model) ->
+    do_coerce({Type}, pjm:to_list(Model));
 do_coerce({_}, undefined) ->
     {[]};
 do_coerce({Type}, Value) when is_list(Value) ->

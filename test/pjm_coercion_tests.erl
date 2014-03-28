@@ -64,6 +64,12 @@ object_test_() ->
      ?_assertEqual({[{foo, 1}, {bar, 123}]}, pjm_coercion:coerce({integer}, {[{foo, 1}, {bar, "123"}]}))
     ].
 
+timestamp_test_() ->
+    [
+     ?_assertEqual({1,2,3}, pjm_coercion:coerce(timestamp, {1, 2, 3})),
+     ?_assertEqual({1396,38020,0}, pjm_coercion:coerce(timestamp, <<"2014-03-28T20:20:20Z">>))
+    ].
+
 
 custom_coerce_test_() ->
     [
