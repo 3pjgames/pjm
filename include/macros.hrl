@@ -1,1 +1,0 @@
--define(IS_PJM(Term, Kind), (element(1, Term) =:= Kind)).
