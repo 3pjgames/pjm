@@ -132,7 +132,9 @@ generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fie
     {function,_,_,_,Clauses1} = Fun1,
     Fun2 = codegen:gen_function(
              read_field,
-             fun(_Key, Default, {{'$var', Module}, _, undefined}) ->
+             fun(Key, Default, Model) when is_binary(Key)->
+                     read_field(binary_to_atom(Key, utf8), Default, Model);
+                (_Key, Default, {{'$var', Module}, _, undefined}) ->
                      Default;
                 (Key, Default, {{'$var', Module}, _, Dict}) ->
                      case apply({'$var', Backend}, find, [Key, Dict]) of
@@ -169,6 +171,8 @@ generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fi
              write_field,
              fun(_Key, undefined, {{'$var', Module}, _Tuple, undefined} = Model) ->
                      Model;
+                (Key, Value, Model) when is_binary(Key) ->
+                     write_field(binary_to_atom(Key, utf8), Value, Model);
                 (Key, Value, {{'$var', Module}, Tuple, undefined}) ->
                      {{'$var', Module},
                       Tuple,
