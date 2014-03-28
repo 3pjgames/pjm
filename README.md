@@ -6,7 +6,7 @@ The long lost Erlang hash and model.
 
 Add pjm as a dependency in `rebar.config`.
 
-    {deps, [{pjm, ".*", {git, "git://github.com/3pjgames/pjm.git", {tag, "1.0.1"}}}]}.
+    {deps, [{pjm, ".*", {git, "git://github.com/3pjgames/pjm.git", {tag, "1.1.0"}}}]}.
 
 Add following compile option in the model module.
 
