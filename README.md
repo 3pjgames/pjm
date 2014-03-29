@@ -18,10 +18,9 @@ See example below
 -module(user).
 -compile([{parse_transform, pjm_parse_trans}]).
 
--pjm_stores_in(users).
--pjm_fields([{login, binary},
-             {password, binary},
-             {age, integer}]).
+-pjm({fields, [{login, binary},
+               {password, binary},
+               {age, integer}]}).
 ```
 
 The module will export method `new/0`, `new/1`, `set/2`, `set/3`, `get/2` and
