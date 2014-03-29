@@ -71,7 +71,7 @@ do_coerce([Type], Value) ->
 do_coerce({Type}, {Value}) when is_list(Value) ->
     F = fun({K, V}) -> {K, do_coerce(Type, V)} end,
     {lists:map(F, Value)};
-do_coerce({Type}, {pjm, _, _, _} = Model) ->
+do_coerce({Type}, {pjm, _, _} = Model) ->
     do_coerce({Type}, pjm:to_list(Model));
 do_coerce({_}, undefined) ->
     {[]};

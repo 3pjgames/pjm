@@ -15,15 +15,15 @@
 -type proplist() :: [proplists:property()].
 
 -spec is(term()) -> boolean().
-is({pjm, Type, Tuple, _} = _Model) when is_atom(Type) andalso is_tuple(Tuple) -> true;
+is({pjm, Type, {Tuple, _}} = _Model) when is_atom(Type) andalso is_tuple(Tuple) -> true;
 is(_) -> false.
 
 -spec is(atom(), term()) -> boolean().
-is(Type, {pjm, Type, Tuple, _} = _Model) when is_tuple(Tuple) -> true;
+is(Type, {pjm, Type, {Tuple, _}} = _Model) when is_tuple(Tuple) -> true;
 is(_, _) -> false.
 
 -spec type(model()) -> atom().
-type({pjm, Type, Tuple, _} = _Model) when is_atom(Type) andalso is_tuple(Tuple) -> Type.
+type({pjm, Type, {Tuple, _}} = _Model) when is_atom(Type) andalso is_tuple(Tuple) -> Type.
 
 -spec new(module()) -> model().
 new(Type) -> Type:new().
@@ -32,31 +32,31 @@ new(Type) -> Type:new().
 new(Type, Attrs) -> Type:new(Attrs).
 
 -spec set(proplist(), model()) -> model().
-set(Attrs, {pjm, Module, _, _} = Model) ->
+set(Attrs, {pjm, Module, _} = Model) ->
     Module:set(Attrs, Model).
 
 -spec set(atom(), term(), model()) -> model().
-set(K, V, {pjm, Module, _, _} = Model) ->
+set(K, V, {pjm, Module, _} = Model) ->
     Module:set(K, V, Model).
 
 -spec get([atom() | {atom(), term()}] | atom(), model()) -> [term()].
-get(Keys, {pjm, Module, _, _} = Model) ->
+get(Keys, {pjm, Module, _} = Model) ->
     Module:get(Keys, Model).
 
 -spec get(atom(), term(), model()) -> term().
-get(K, Def, {pjm, Module, _, _} = Model) ->
+get(K, Def, {pjm, Module, _} = Model) ->
     Module:set(K, Def, Model).
 
 -spec map(fun((atom(), term()) -> term()), model()) -> model().
-map(F, {pjm, Module, _, _} = Model) ->
+map(F, {pjm, Module, _} = Model) ->
     Module:map(F, Model).
 
 -spec fold(fun((atom(), term(), term()) -> term()), term(), model()) -> term().
-fold(F, Acc, {pjm, Module, _, _} = Model) ->
+fold(F, Acc, {pjm, Module, _} = Model) ->
     Module:fold(F, Acc, Model).
 
 -spec to_list(model()) -> proplist().
-to_list({pjm, Module, _, _} = Model) ->
+to_list({pjm, Module, _} = Model) ->
     Module:to_list(Model).
 
 -spec coerce(atom(), term()) -> term().
