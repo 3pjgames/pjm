@@ -2,10 +2,10 @@
 -include("../include/pjm.hrl").
 -include("./test_helpers.hrl").
 
--pjm_stores_in(users).
--pjm_fields([
-             {'Login', binary, <<"test">>}
-            ]).
+-pjm([{stores_in, users},
+      {fields,
+       [{'Login', binary, <<"test">>}]}
+     ]).
 
 new_test_() ->
     {

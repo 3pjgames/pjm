@@ -7,6 +7,7 @@
 -export([map/2, fold/3]).
 -export([to_list/1]).
 -export([coerce/2]).
+-export([info/2]).
 
 -type model() :: {atom(), tuple(), term()}.
 -type model(T) :: {T, tuple(), term()}.
@@ -62,3 +63,7 @@ to_list({pjm, Module, _} = Model) ->
 -spec coerce(atom(), term()) -> term().
 coerce(Module, Value) ->
     Module:coerce(Module, Value).
+
+-spec info(atom(), atom() | model()) -> term().
+info(Type, {pjm, Module, _}) -> Module:pjm_info(Type);
+info(Type, Module) -> Module:pjm_info(Type).

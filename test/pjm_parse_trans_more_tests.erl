@@ -2,10 +2,7 @@
 -include("../include/pjm.hrl").
 -include("./test_helpers.hrl").
 
--pjm_stores_in(users).
--pjm_fields([
-             {'Login', binary, <<"test">>}
-            ]).
+-pjm({fields, [{'Login', binary, <<"test">>}]}).
 
 get_one('LoginLength', _, Model) ->
     case read_field('Login', undefined, Model) of

@@ -10,7 +10,7 @@
           line,
           get_one_defined = false,
           set_one_defined = false,
-          uses_dict = orddict,
+          backend = orddict,
           fields = [],
           info = orddict:new()
          }).
@@ -22,7 +22,11 @@ parse_transform(Forms, Options) ->
 
 do_transform(Forms, Context) ->
     State = parse_trans:do_inspect(fun inspect_f/4, #state{}, Forms, Context),
-    State1 = State#state{fields = lists:reverse(State#state.fields)},
+    Fields = lists:reverse(State#state.fields),
+    State1 = State#state{fields = Fields,
+                         info = orddict:store(fields,
+                                              [{Name, Type, Default} || #field{name = Name, type = Type, default = Default} <- Fields],
+                                              State#state.info)},
     {Forms1, _} = case State1#state.line of
                       undefined -> {Forms, State1};
                       _ -> parse_trans:do_transform(fun generate_f/4, State1, Forms, Context)
@@ -41,16 +45,26 @@ inspect_f(function, {function, _L, get_one, 3, _}, _Ctxt, Acc) ->
     {false, Acc#state{get_one_defined = true}};
 inspect_f(function, {function, _L, set_one, 3, _}, _Ctxt, Acc) ->
     {false, Acc#state{set_one_defined = true}};
-inspect_f(attribute, {attribute, L, pjm_stores_in, StoresIn}, _Ctxt, Acc) ->
-    {false, Acc#state{stores_in = StoresIn, line = L}};
-inspect_f(attribute, {attribute, L, pjm_fields, Fields}, _Ctxt, Acc) ->
-    {false, inspect_field(Fields, Acc#state{line = L})};
-inspect_f(attribute, {attribute, L, pjm_uses_dict, Module}, _Ctxt, Acc) ->
-    {false, Acc#state{uses_dict = Module, line = L}};
+inspect_f(attribute, {attribute, L, pjm, {Key, Value}}, _Ctxt, Acc) ->
+    {false, inspect_info(Key, Value, Acc#state{line = L})};
+inspect_f(attribute, {attribute, L, pjm, [{Key, Value}|Rest]}, _Ctxt, Acc) ->
+    inspect_f(attribute, {attribute, L, pjm, Rest}, _Ctxt, inspect_info(Key, Value, Acc));
 inspect_f(attribute, {attribute, L, pjm, _}, _Ctxt, Acc) ->
     {false, Acc#state{line = L}};
 inspect_f(_Type, _Form, _Context, Acc) ->
     {false, Acc}.
+
+inspect_info(fields, Value, Acc) ->
+    inspect_field(Value, Acc);
+inspect_info(backend, Backend, Acc) ->
+    Acc#state{
+      backend = Backend,
+      info = orddict:store(backend, Backend, Acc#state.info)
+     };
+inspect_info(Key, Value, Acc) ->
+    Acc#state{
+      info = orddict:store(Key, Value, Acc#state.info)
+     }.
 
 inspect_field([Name|T], Acc) when is_atom(Name) ->
     inspect_field(T, add_field(Name, binary, undefined, Acc));
@@ -121,7 +135,7 @@ generate_new_1(#state{module = Module}) ->
           ({pjm, {'$var', Module}, _} = Model) -> Model
        end)].
 
-generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
+generate_read_field_3(#state{module = Module, backend = Backend, line = L, fields = Fields}) ->
     Fun1 = codegen:gen_function(
              read_field,
              [ fun({'$var', Name}, Default, {pjm, {'$var', Module}, {Tuple, _}}) ->
@@ -147,7 +161,7 @@ generate_read_field_3(#state{module = Module, uses_dict = Backend, line = L, fie
     [{function,L,read_field,3,
       (Clauses1 ++ Clauses2)}].
 
-generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fields = Fields}) ->
+generate_write_field_3(#state{module = Module, backend = Backend, line = L, fields = Fields}) ->
     Fun1 = codegen:gen_function(
              write_field,
              [ fun({'$var', Name}, Value, {pjm, {'$var', Module}, {Tuple, Dict}}) ->
@@ -179,12 +193,12 @@ generate_write_field_3(#state{module = Module, uses_dict = Backend, line = L, fi
                       {'$var', Module},
                       {Tuple,
                        {'$form', CreateDict}}};
-                (Key, undefined, {pjm, {'$var', Module}, Tuple, Dict}) ->
+                (Key, undefined, {pjm, {'$var', Module}, {Tuple, Dict}}) ->
                      {pjm,
                       {'$var', Module},
                       {Tuple,
                        {'$form', Erase}}};
-                (Key, Value, {pjm, {'$var', Module}, Tuple, Dict}) ->
+                (Key, Value, {pjm, {'$var', Module}, {Tuple, Dict}}) ->
                      {pjm,
                       {'$var', Module},
                       {Tuple,
@@ -237,13 +251,13 @@ generate_set(_State) ->
       )
     ].
 
-generate_map(#state { module = Module, uses_dict = Backend }) ->
+generate_map(#state { module = Module, backend = Backend }) ->
     [
      codegen:gen_function(
        map,
        fun(Fun, {pjm, {'$var', Module}, {Tuple, Dict}}) ->
                {Model, _} = lists:foldl(
-                              fun(Key, {ModelIn, Index}) ->
+                              fun({Key, _, _}, {ModelIn, Index}) ->
                                       { set_one(Key, Fun(Key, element(Index, Tuple)), ModelIn),
                                         Index + 1 }
                               end,
@@ -263,13 +277,13 @@ generate_map(#state { module = Module, uses_dict = Backend }) ->
       )
     ].
 
-generate_fold((#state { module = Module, uses_dict = Backend })) ->
+generate_fold((#state { module = Module, backend = Backend })) ->
     [
      codegen:gen_function(
        fold,
        fun(Fun, Acc, {pjm, {'$var', Module}, {Tuple, Dict}}) ->
                {Acc1, _} = lists:foldl(
-                             fun(Key, {AccIn, Index}) ->
+                             fun({Key, _, _}, {AccIn, Index}) ->
                                      {Fun(Key, element(Index, Tuple), AccIn), Index + 1}
                              end,
                              {Acc, 1},
@@ -298,15 +312,18 @@ generate_to_list(_State) ->
        end
       )].
 
-generate_pjm_info(#state { fields = Fields, stores_in = StoresIn }) ->
-    FieldsNames = [ F#field.name || F <- Fields ],
+generate_pjm_info(#state { info = Info }) ->
+    {function,Line,Name,Arity,Clauses} =
+        codegen:gen_function(
+          pjm_info,
+          [
+           fun({'$var', Key}) -> {'$var', Value} end
+           || {Key, Value} <- orddict:to_list(Info)
+          ]
+         ),
     [
-     codegen:gen_function(
-       pjm_info,
-       fun(fields) -> {'$var', FieldsNames};
-          (stores_in) -> {'$var', StoresIn}
-       end
-      )
+     {function,Line,Name,Arity,
+      Clauses ++ [{clause,Line,[{var,Line,'_'}],[],[{atom,Line,undefined}]}]}
     ].
 
 generate_coerce(#state{ module = Module }) ->
