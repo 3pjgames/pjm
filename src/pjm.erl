@@ -46,7 +46,7 @@ get(Keys, {pjm, Module, _} = Model) ->
 
 -spec get(atom(), term(), model()) -> term().
 get(K, Def, {pjm, Module, _} = Model) ->
-    Module:set(K, Def, Model).
+    Module:get(K, Def, Model).
 
 -spec map(fun((atom(), term()) -> term()), model()) -> model().
 map(F, {pjm, Module, _} = Model) ->
