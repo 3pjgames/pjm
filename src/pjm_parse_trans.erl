@@ -97,6 +97,7 @@ generate_f(attribute, {attribute, L, _, _} = Form, _Ctxt, State) ->
                                   generate_set_one(State),
                                   generate_set(State),
                                   generate_get(State),
+                                  generate_unset(State),
                                   generate_pjm_info(State),
                                   generate_map(State),
                                   generate_fold(State),
@@ -116,6 +117,7 @@ generate_export(#state{ line = L }) ->
                              {set, 3},
                              {get, 2},
                              {get, 3},
+                             {unset, 2},
                              {map, 2},
                              {fold, 3},
                              {to_list, 1},
@@ -249,6 +251,21 @@ generate_set(_State) ->
        set,
        fun(Key, Value, Model) -> set_one(Key, Value, Model) end
       )
+    ].
+
+generate_unset(_State) ->
+    [
+     codegen:gen_function(
+       unset,
+       fun(Key, Model) when is_atom(Key) ->
+               set_one(Key, undefined, Model);
+          (Keys, Model) ->
+               lists:foldl(
+                 fun(Key, M) -> set_one(Key, undefined, M) end,
+                 Model,
+                 Keys
+                )
+       end)
     ].
 
 generate_map(#state { module = Module, backend = Backend }) ->

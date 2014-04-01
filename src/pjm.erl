@@ -3,6 +3,7 @@
 -export([is/1, is/2, type/1]).
 -export([new/1, new/2]).
 -export([set/2, set/3]).
+-export([unset/2]).
 -export([get/2, get/3]).
 -export([map/2, fold/3]).
 -export([to_list/1]).
@@ -39,6 +40,10 @@ set(Attrs, {pjm, Module, _} = Model) ->
 -spec set(atom(), term(), model()) -> model().
 set(K, V, {pjm, Module, _} = Model) ->
     Module:set(K, V, Model).
+
+-spec unset(atom() | [atom()], model()) -> model().
+unset(K, {pjm, Module, _} = Model) ->
+    Module:unset(K, Model).
 
 -spec get([atom() | {atom(), term()}] | atom(), model()) -> [term()].
 get(Keys, {pjm, Module, _} = Model) ->
