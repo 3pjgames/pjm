@@ -357,7 +357,8 @@ generate_coerce(#state{ module = Module }) ->
     [
      codegen:gen_function(
        coerce,
-       fun({'$var', Module}, {{'$var', Module}, _, _} = Model) -> Model;
+       fun({'$var', Module}, undefined) -> undefined;
+          ({'$var', Module}, {{'$var', Module}, _, _} = Model) -> Model;
           ({'$var', Module}, Attrs) when is_list(Attrs) -> new(Attrs);
           ({'$var', Module}, {Attrs}) when is_list(Attrs) -> new(Attrs)
        end
