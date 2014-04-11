@@ -126,9 +126,19 @@ generate_export(#state{ line = L }) ->
                             ]}].
 
 generate_new_0(#state{module = Module, fields = Fields}) ->
-    Defaults = lists:map(fun(F) -> F#field.default end, Fields),
-    NewModel = {pjm, Module, {list_to_tuple(Defaults), undefined}},
-    [codegen:gen_function(new, fun() -> {'$var', NewModel} end)].
+    Defaults = lists:map(
+                 fun(F) ->
+                         Def = F#field.default,
+                         case Def of
+                             {mfa, DefM, DefF, DefA} ->
+                                 codegen:exprs(fun() -> apply({'$var', DefM}, {'$var', DefF}, {'$var', DefA}) end);
+                             _ ->
+                                 codegen:exprs(fun() -> {'$var', Def} end)
+                         end
+                 end,
+                 Fields),
+    Tuple = {tuple,?LINE,lists:append(Defaults)},
+    [codegen:gen_function(new, fun() -> {pjm, {'$var', Module}, {{'$form', Tuple}, undefined}} end)].
 
 generate_new_1(#state{module = Module}) ->
     [codegen:gen_function(
