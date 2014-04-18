@@ -25,7 +25,7 @@ integer_test_() ->
      ?_assertEqual(1, pjm_coercion:coerce(integer, 1.2)),
      ?_assertEqual(12, pjm_coercion:coerce(integer, <<"12">>)),
      ?_assertEqual(123, pjm_coercion:coerce(integer, "123")),
-     ?_assertError(badcoersion, pjm_coercion:coerce(integer, "test"))
+     ?_assertThrow({badcoersion, integer, "test"}, pjm_coercion:coerce(integer, "test"))
     ].
 
 float_test_() ->
@@ -36,7 +36,7 @@ float_test_() ->
      ?_assertEqual(1.2, pjm_coercion:coerce(float, 1.2)),
      ?_assertEqual(1.2, pjm_coercion:coerce(float, <<"1.2">>)),
      ?_assertEqual(1.23, pjm_coercion:coerce(float, "1.23")),
-     ?_assertError(badcoersion, pjm_coercion:coerce(float, "test"))
+     ?_assertThrow({badcoersion, float, "test"}, pjm_coercion:coerce(float, "test"))
     ].
 
 boolean_test_() ->
@@ -75,5 +75,5 @@ custom_coerce_test_() ->
     [
      ?_assertEqual({?MODULE, <<"test">>}, pjm_coercion:coerce(?MODULE, <<"test">>)),
      ?_assertEqual({test, <<"test">>}, pjm_coercion:coerce({?MODULE, test}, <<"test">>)),
-     ?_assertError(badcoersion, pjm_coercion:coerce(unknown, <<"test">>))
+     ?_assertThrow({badcoersion, unknown, <<"test">>}, pjm_coercion:coerce(unknown, <<"test">>))
     ].

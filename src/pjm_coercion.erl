@@ -7,8 +7,8 @@
 coerce(Type, Value) ->
     try do_coerce(Type, Value)
     catch
-        error:badarg -> error(badcoersion);
-        error:undef -> error(badcoersion)
+        error:badarg -> throw({badcoersion, Type, Value});
+        error:undef -> throw({badcoersion, Type, Value})
     end.
 
 do_coerce(any, Value) -> Value;
@@ -60,7 +60,7 @@ do_coerce(timestamp, Timestamp) when is_binary(Timestamp) ->
             do_coerce(timestamp,
                       {{binary_to_integer(Y), binary_to_integer(Mon), binary_to_integer(D)},
                        {binary_to_integer(H), binary_to_integer(M), binary_to_integer(S)}});
-        _ -> error(badcoersion)
+        _ -> throw({badcoersion, timestamp, Timestamp})
     end;
 do_coerce([Type], Value) when is_list(Value) ->
     F = fun(V) -> do_coerce(Type, V) end,
