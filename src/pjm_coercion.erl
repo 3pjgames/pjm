@@ -62,6 +62,7 @@ do_coerce(timestamp, Timestamp) when is_binary(Timestamp) ->
                        {binary_to_integer(H), binary_to_integer(M), binary_to_integer(S)}});
         _ -> throw({badcoersion, timestamp, Timestamp})
     end;
+do_coerce(timestamp, undefined) -> undefined;
 do_coerce([Type], Value) when is_list(Value) ->
     F = fun(V) -> do_coerce(Type, V) end,
     lists:map(F, Value);
