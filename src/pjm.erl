@@ -6,7 +6,7 @@
 -export([unset/2]).
 -export([get/2, get/3]).
 -export([map/2, fold/3]).
--export([to_list/1]).
+-export([to_list/1, to_list_r/1]).
 -export([coerce/2]).
 -export([info/2]).
 
@@ -64,6 +64,21 @@ fold(F, Acc, {pjm, Module, _} = Model) ->
 -spec to_list(model()) -> proplist().
 to_list({pjm, Module, _} = Model) ->
     Module:to_list(Model).
+
+%% to_list recursively
+-spec to_list_r(model()) -> proplist().
+to_list_r(Model) ->
+    fold(
+      fun(K, V, Acc) when is_list(V) ->
+              [{K, lists:map(fun to_list_r/1, V)}|Acc];
+         (K, {pjm, _, _} = V, Acc) ->
+              [{K, to_list_r(V)}|Acc];
+         (K, V, Acc) ->
+              [{K, V}|Acc]
+      end,
+      [],
+      Model
+     ).
 
 -spec coerce(atom(), term()) -> term().
 coerce(Module, Value) ->
