@@ -67,7 +67,7 @@ to_list({pjm, Module, _} = Model) ->
 
 %% to_list recursively
 -spec to_list_r(model()) -> proplist().
-to_list_r(Model) ->
+to_list_r({pjm, _, _} = Model) ->
     fold(
       fun(K, V, Acc) when is_list(V) ->
               [{K, lists:map(fun to_list_r/1, V)}|Acc];
@@ -78,7 +78,8 @@ to_list_r(Model) ->
       end,
       [],
       Model
-     ).
+     );
+to_list_r(Other) -> Other.
 
 -spec coerce(atom(), term()) -> term().
 coerce(Module, Value) ->
