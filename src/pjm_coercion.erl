@@ -32,6 +32,8 @@ do_coerce(integer, Value) when is_float(Value) ->
 do_coerce(integer, undefined) -> 0;
 do_coerce(integer, Value) when is_binary(Value) ->
     binary_to_integer(Value);
+do_coerce(integer, Value) when is_atom(Value) ->
+    binary_to_integer(atom_to_binary(Value, utf8));
 do_coerce(integer, Value) when is_list(Value) ->
     list_to_integer(Value);
 do_coerce(float, Value) when is_float(Value) ->
@@ -78,7 +80,34 @@ do_coerce({_}, undefined) ->
     {[]};
 do_coerce({Type}, Value) when is_list(Value) ->
     do_coerce({Type}, {Value});
+do_coerce({dict, KeyType, ValueType}, Value) ->
+    lists:foldl(
+      fun({K, V}, Dict) ->
+              dict:store(
+                do_coerce(KeyType, K),
+                do_coerce(ValueType, V),
+                Dict
+               )
+      end,
+      dict:new(),
+      get_proplist(Value)
+     );
+do_coerce({orddict, KeyType, ValueType}, Value) ->
+    lists:foldl(
+      fun({K, V}, Dict) ->
+              orddict:store(
+                do_coerce(KeyType, K),
+                do_coerce(ValueType, V),
+                Dict
+               )
+      end,
+      orddict:new(),
+      get_proplist(Value)
+     );
 do_coerce({M, T}, Value) ->
     M:coerce(T, Value);
 do_coerce(M, Value) ->
     M:coerce(M, Value).
+
+get_proplist({List}) when is_list(List) -> List;
+get_proplist(List) when is_list(List) -> List.

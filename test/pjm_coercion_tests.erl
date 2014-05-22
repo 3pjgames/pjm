@@ -70,6 +70,23 @@ timestamp_test_() ->
      ?_assertEqual({1396,38020,0}, pjm_coercion:coerce(timestamp, <<"2014-03-28T20:20:20Z">>))
     ].
 
+dict_test_() ->
+    Dict = pjm_coercion:coerce({dict, integer, integer}, {[{1, 1}, {'2', '2'}, {<<"3">>, <<"3">>}]}),
+    [
+     ?_assertEqual(1, dict:fetch(1, Dict)),
+     ?_assertEqual(2, dict:fetch(2, Dict)),
+     ?_assertEqual(3, dict:fetch(3, Dict)),
+     ?_assertEqual(3, dict:size(Dict))
+    ].
+
+orddict_test_() ->
+    Dict = pjm_coercion:coerce({orddict, integer, integer}, {[{1, 1}, {'2', '2'}, {<<"3">>, <<"3">>}]}),
+    [
+     ?_assertEqual(1, orddict:fetch(1, Dict)),
+     ?_assertEqual(2, orddict:fetch(2, Dict)),
+     ?_assertEqual(3, orddict:fetch(3, Dict)),
+     ?_assertEqual(3, orddict:size(Dict))
+    ].
 
 custom_coerce_test_() ->
     [
