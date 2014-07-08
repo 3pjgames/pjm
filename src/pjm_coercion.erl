@@ -80,6 +80,8 @@ do_coerce({_}, undefined) ->
     {[]};
 do_coerce({Type}, Value) when is_list(Value) ->
     do_coerce({Type}, {Value});
+do_coerce({dict, _KeyType, _ValueType}, Value) when is_tuple(Value) andalso element(1, Value) =:= dict ->
+    Value;
 do_coerce({dict, KeyType, ValueType}, Value) ->
     lists:foldl(
       fun({K, V}, Dict) ->
